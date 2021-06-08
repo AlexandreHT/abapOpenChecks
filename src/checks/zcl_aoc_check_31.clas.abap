@@ -8,15 +8,15 @@ CLASS zcl_aoc_check_31 DEFINITION
     METHODS constructor .
 
     METHODS check
-         REDEFINITION .
+        REDEFINITION .
     METHODS get_attributes
-         REDEFINITION .
+        REDEFINITION .
     METHODS if_ci_test~query_attributes
-         REDEFINITION .
+        REDEFINITION .
     METHODS put_attributes
-         REDEFINITION .
+        REDEFINITION .
     METHODS get_message_text
-         REDEFINITION .
+        REDEFINITION .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -37,7 +37,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_AOC_CHECK_31 IMPLEMENTATION.
+CLASS zcl_aoc_check_31 IMPLEMENTATION.
 
 
   METHOD check.
@@ -78,7 +78,7 @@ CLASS ZCL_AOC_CHECK_31 IMPLEMENTATION.
         ENDIF.
       ENDLOOP.
 
-      lv_tmp = |(SLIN code key: { lv_code })|.
+      lv_tmp = |(SLIN code key: { <ls_result>-code })|.
       CONCATENATE lv_text cl_abap_char_utilities=>newline lv_tmp INTO lv_text.
 
       IF lines( mt_error ) > 0 AND <ls_result>-code IN mt_error.
@@ -122,7 +122,7 @@ CLASS ZCL_AOC_CHECK_31 IMPLEMENTATION.
       ENDIF.
 
       lv_obj_name = <ls_result>-src_incl.
-      lv_code = <ls_result>-code.
+      lv_code     = <ls_result>-code.
       inform( p_sub_obj_name = lv_obj_name
               p_line         = <ls_result>-src_line
               p_kind         = lv_errty
@@ -136,7 +136,7 @@ CLASS ZCL_AOC_CHECK_31 IMPLEMENTATION.
 
   METHOD constructor.
 
-    DATA lt_slin_desc_t     TYPE STANDARD TABLE OF slin_desc_t WITH EMPTY KEY.
+    DATA lt_slin_desc_t     TYPE STANDARD TABLE OF slin_desc_t.
     DATA ls_slin_desc_t     TYPE slin_desc_t.
     DATA lv_code            TYPE sci_errc.
     DATA lv_scimessage_text TYPE ty_scimessage_text.

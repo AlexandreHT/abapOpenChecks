@@ -100,6 +100,11 @@ CLASS zcl_aoc_check_69 DEFINITION
         !is_check      TYPE rsfbintfv
       RETURNING
         VALUE(rv_skip) TYPE abap_bool .
+    METHODS is_unresolved_exception_class
+        IMPORTING
+          !iv_class_fullname TYPE string
+        RETURNING
+          VALUE(rv_is_an_excpcls) TYPE xfeld .
   PRIVATE SECTION.
 
     DATA mo_scan TYPE REF TO zcl_aoc_scan .
@@ -171,7 +176,9 @@ CLASS zcl_aoc_check_69 IMPLEMENTATION.
         WHEN 'ENDCLASS' OR 'ENDMETHOD' OR 'ENDFORM' OR 'ENDINTERFACE'.
           mo_stack->pop( ).
         WHEN 'ENDFUNCTION'.
-          IF object_type = 'FUGR'.
+          IF object_type = 'FUGR' OR
+              object_type = 'FUGS' OR
+              object_type = 'FUGX'.
             IF zcl_aoc_util_reg_atc_namespace=>is_in_namespace( iv_pgmid    = 'R3TR'
                                                                 iv_object   = 'FUGR'
                                                                 iv_obj_name = object_name ) = abap_true.
@@ -1012,6 +1019,11 @@ CLASS zcl_aoc_check_69 IMPLEMENTATION.
 
   METHOD determine_type_prefix.
 
+
+    CONSTANTS:
+      "! cl_abap_comp_type=>type_kind_ddic_dbtab does not exists in 731
+      lc_type_kind_ddic_dbtab TYPE scr_typekind VALUE `7`.
+
     DATA: lo_table_symbol      TYPE REF TO cl_abap_comp_table_type,
           lo_symbol_simple     TYPE REF TO cl_abap_comp_data,
           lo_type_symbol       TYPE REF TO cl_abap_comp_type,
@@ -1043,7 +1055,7 @@ CLASS zcl_aoc_check_69 IMPLEMENTATION.
           WHEN OTHERS.
             rv_prefix = ms_naming-prefix_elemen.
         ENDCASE.
-      WHEN cl_abap_comp_type=>type_kind_structure OR cl_abap_comp_type=>type_kind_ddic_dbtab.
+      WHEN cl_abap_comp_type=>type_kind_structure OR lc_type_kind_ddic_dbtab.
         rv_prefix = ms_naming-prefix_struct.
       WHEN cl_abap_comp_type=>type_kind_table.
         lo_table_symbol ?= lo_type_symbol.
@@ -1080,6 +1092,10 @@ CLASS zcl_aoc_check_69 IMPLEMENTATION.
                 rv_prefix = ms_naming-prefix_rbadi.
               WHEN OTHERS.
                 rv_prefix = ms_naming-prefix_rclass.
+                "further check, if class is an unresolved exception class
+                IF is_unresolved_exception_class( lo_type_symbol_class->full_name ) = abap_true.
+                  rv_prefix = ms_naming-prefix_rexcep.
+                ENDIF.
             ENDCASE.
 
           WHEN OTHERS.
@@ -1221,6 +1237,37 @@ CLASS zcl_aoc_check_69 IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD is_unresolved_exception_class.
+
+    DATA lv_name   TYPE program.
+    DATA lv_prefix TYPE string.
+    DATA lo_compiler TYPE REF TO cl_abap_compiler.
+    DATA lo_class TYPE REF TO cl_abap_comp_class.
+
+
+    TRY.
+        rv_is_an_excpcls = abap_false.
+        SPLIT iv_class_fullname AT '\TY:' INTO lv_prefix lv_name.
+        OVERLAY lv_name WITH '==============================CP'.
+        lo_compiler = cl_abap_compiler=>create( lv_name ).
+        IF lo_compiler IS NOT BOUND.
+          RETURN.
+        ENDIF.
+        lo_class ?= lo_compiler->get_symbol_entry( iv_class_fullname ).
+        IF lo_class IS BOUND.
+          WHILE lo_class->super_class IS BOUND.
+            lo_class = lo_class->super_class.
+          ENDWHILE.
+          IF lo_class->full_name = '\TY:CX_ROOT'.
+            rv_is_an_excpcls = abap_true.
+          ENDIF.
+        ENDIF.
+      CATCH cx_sy_move_cast_error ##NO_HANDLER.
+    ENDTRY.
+
+  ENDMETHOD.
+
+
   METHOD put_attributes.
 
     IMPORT
@@ -1234,14 +1281,19 @@ CLASS zcl_aoc_check_69 IMPLEMENTATION.
 
   METHOD qualify_tokens.
 
+    DATA:
+      lv_lines TYPE i.
+
     INSERT LINES OF ref_scan->tokens FROM statement_wa-from
       TO statement_wa-to INTO TABLE rt_tokens.
+
+    lv_lines = lines( rt_tokens ).
 
     CALL FUNCTION 'RS_QUALIFY_ABAP_TOKENS_STR'
       EXPORTING
         statement_type        = statement_wa-type
         index_from            = 1
-        index_to              = lines( rt_tokens )
+        index_to              = lv_lines
       CHANGING
         stokesx_tab           = rt_tokens
       EXCEPTIONS
